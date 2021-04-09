@@ -1,3 +1,5 @@
+[ mirror only, development is done on my own git server ]
+
 # zmapi
 
 A simple, shell (bash) based ZoneMinder API CLI which, combined with a camera control (cam) and watchdog (camwatch) can be used to keep a ZoneMinder installation up and running without having to deal with those clunky web interfaces.
