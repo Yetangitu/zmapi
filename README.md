@@ -172,7 +172,7 @@ Available parameters for vencode_main:
 	-e	enabled (type b)
 	-c	codecType (type s)
 	-b	constantBitrate (type i)
-	```
+```
 
 Set the channelName (the name shown in the bottom-right of the image) for camera #2 to *WATCHTOWER*:
 
