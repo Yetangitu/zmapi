@@ -18,21 +18,24 @@ Run `zmapi` and `cam` without parameters for an overview of the available comman
 
 Show all monitors:
 
-```$ zmapi monitors
+```
+$ zmapi monitors
 ...
 ...lots of JSON output...
 ```
 
 Show monitor #1:
 
-```$ zmapi monitor 1
+```
+$ zmapi monitor 1
 ...
 ...lots of JSON output...
 ```
 
 Show monitor #1 status:
 
-```$ zmapi status 1
+```
+$ zmapi status 1
 {
   "MonitorId": "1",
   "Status": "Connected",
@@ -44,7 +47,8 @@ Show monitor #1 status:
 
 Show daemon status for monitor #1 (default shows `zmc` daemon status):
 
-```$ zmapi daemonstatus 1
+```
+$ zmapi daemonstatus 1
 {
   "status": true,
   "statustext": "'zmc -m 1' running since 21/04/09 01:06:46, pid = 12303"
@@ -53,7 +57,8 @@ Show daemon status for monitor #1 (default shows `zmc` daemon status):
 
 Show `zma` status for that monitor:
 
-```$ zmapi daemonstatus 1 zma
+```
+$ zmapi daemonstatus 1 zma
 {
   "status": true,
   "statustext": "'zma -m 1' running since 21/04/09 01:06:52, pid = 12314"
@@ -66,13 +71,15 @@ Show `zma` status for that monitor:
 
 Show the time according to camera number 1:
 
-```$ cam 1 time
+```
+$ cam 1 time
 time CAM1 (192.168.5.10): "2021-04-09T15:02:48+02:00"
 ```
 
 Set the time on all cameras to the current time:
 
-```$ cam all time $(date -Iseconds)
+```
+$ cam all time $(date -Iseconds)
 $ cam all time $(date -Iseconds)
 time CAM1 (192.168.5.10): "OK"
 time CAM2 (192.168.5.11): "OK"
@@ -85,13 +92,15 @@ time CAM7 (192.168.5.16): "OK"
 
 Reboot camera #7:
 
-```$ cam 7 reboot
+```
+$ cam 7 reboot
 reboot CAM7 192.168.5.16): "OK"
 ```
 
 Show video encoding configuration for camera #1:
 
-```$ cam 1 vencode_main
+```
+$ cam 1 vencode_main
 vencode_main CAM1 (192.168.5.10): {
   "id": 101,
   "enabled": true,
@@ -159,7 +168,9 @@ vencode_main CAM1 (192.168.5.10): {
 ```
 
 Show which video encoding parameters can be changed on camera #1:
-``` cam 1 vencode_main -H
+
+```
+$ cam 1 vencode_main -H
 Available parameters for vencode_main:
 
 	-F	freeResolution (type b)
@@ -176,7 +187,8 @@ Available parameters for vencode_main:
 
 Set the channelName (the name shown in the bottom-right of the image) for camera #2 to *WATCHTOWER*:
 
-``` cam 2 vencode_main -n WATCHTOWER
+```
+$ cam 2 vencode_main -n WATCHTOWER
 vencode_main CAM2 (192.168.5.11): "OK"
 ```
 
@@ -185,4 +197,3 @@ vencode_main CAM2 (192.168.5.11): "OK"
 ### camwatch
 
 Use the `camwatch` script to reboot cameras which have stopped producing valid output. The script is best run as a cron job, once a minute or less often.
-
