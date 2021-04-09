@@ -80,7 +80,6 @@ Set the time on all cameras to the current time:
 
 ```
 $ cam all time $(date -Iseconds)
-$ cam all time $(date -Iseconds)
 time CAM1 (192.168.5.10): "OK"
 time CAM2 (192.168.5.11): "OK"
 time CAM3 (192.168.5.12): "OK"
