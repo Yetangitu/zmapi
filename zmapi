@@ -1,0 +1,135 @@
+#!/bin/bash
+
+username=""
+password=""
+server=""
+
+confdir="$HOME/.config/zmapi"
+config="zmapi.conf"
+access_token="access.json"
+refresh_token="refresh.json"
+
+if [ -f "$confdir/$config" ]; then
+	source  "$confdir/$config"
+else
+	echo "configuration file ($confdir/$config) missing"
+	echo "new file created, edit it and restart program"
+	echo <<-EOT > "$confdir/$config"
+	username=
+	password=
+	server=
+	EOT
+	exit 1
+fi
+
+declare -A API=(
+	[monitors]='monitors.json|G'
+	[sourcetypes]='monitors/sourceTypes.json|G'
+	[monitor]='monitors/${1}.json|G'
+	[daemonstatus]='monitors/daemonStatus/id:${1}/daemon:${2:-zmc}.json|G'
+	[daemoncontrol]='monitors/daemonStatus/id:${1}/command:${2}/daemon:${3}.json|G'
+	[status]='monitors/${1}.json|G|.monitor.Monitor_Status'
+	[alarm]='monitors/alarm/id:${1}/command:${2:-status}.json|G'
+	[login]='host/login.json|P'
+	[events]='events/index/${1}.json|G'
+	[console_events]='events/consoleEvents/${1}.json|G'
+	[states]='states.json|G'
+	[restart]='states/change/restart.json|P'
+	[stop]='states/change/stop.json|P'
+	[start]='states/change/start.json|P'
+	[zones]='zones.json|G'
+	[load]='host/getLoad.json|G'
+	[daemoncheck]='host/daemonCheck.json|G'
+	[getdiskpercent]='host/getDiskPercent.json|G'
+	[storage]='storage.json|G'
+	[servers]='servers.json|G'
+	[configs]='configs.json|G'
+)
+
+get () {
+	cmd="$1"
+	shift
+	token="$1"
+	shift
+	path=$(echo "${API[$cmd]}"|cut -d '|' -f 1)
+	filter=$(echo "${API[$cmd]}"|cut -d '|' -f 3)
+	if [ -z "$filter" ]; then
+		filter='.'
+	fi
+	if [ $# -gt 0 ]; then
+		path="$(eval echo "$path")"
+	fi
+	(if [ $token == "null" ]; then
+		curl -s -XGET "$server/api/${path}"
+	else
+		curl -s -XGET "$server/api/${path}?token=$token"
+		fi)|jq -r "$filter"
+
+}
+
+post () {
+	cmd="$1"
+	shift
+	token="$1"
+	shift
+	data="$*"
+	path="${API[$cmd]%|P}"
+	if [ $token == "null" ]; then
+		curl -s -XPOST -d "$data" "$server/api/${path}"
+	else
+		curl -s -XPOST -d "$data" "$server/api/${path}?token=$token"
+	fi
+}
+
+get_token () {
+	atoken_expires=110
+	rtoken_expires=1400
+	access=$(find "$confdir" -name "$access_token" -mmin -$atoken_expires)
+	refresh=$(find "$confdir" -name "$refresh_token" -mmin -$rtoken_expires)
+	if [[ -n "$access" ]]; then
+		token=$(jq -r '.access_token' "$confdir/$access_token")
+	else
+		if [[ -n "$refresh" ]]; then
+			rtoken=$(jq -r '.refresh_token' "$confdir/$refresh_token")
+			token=$(post login $rtoken|tee "$confdir/$access_token"|jq -r '.access_token')
+		else
+			data="user=$username&pass=$password"
+			token=$(post login null "$data" |tee "$confdir/$refresh_token"|jq -r '.access_token')
+		fi
+	fi
+
+	echo -n $token
+}
+
+help () {
+        printf "Use: $(basename $0) command [[parameter1] [[parameter2...]]]\n\n"
+        printf "available commands:\n\n"
+        printf '%s\n' "${!API[@]}"|sort
+        exit
+}
+
+
+token=$(get_token)
+
+cmd="$1"
+shift
+
+if ! test ${API[$cmd]+_}; then
+	printf "unknown command $cmd\n\n"
+	help
+	exit 1
+fi
+
+method=$(echo "${API[$cmd]}"|cut -d '|' -f 2)
+
+case "$method" in
+	G)
+		get "$cmd" "$token" "$@"
+		;;
+	P)
+		post "$cmd" "$token" "$@"
+		;;
+	*)
+		printf "unknown method $method for command $cmd"
+		;;
+esac
