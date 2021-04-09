@@ -182,3 +182,7 @@ vencode_main CAM2 (192.168.5.11): "OK"
 
 ...etc
 
+### camwatch
+
+Use the `camwatch` script to reboot cameras which have stopped producing valid output. The script is best run as a cron job, once a minute or less often.
+
