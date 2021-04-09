@@ -18,13 +18,15 @@ Show all monitors:
 
 ```$ zmapi monitors
 ...
-...lots of JSON output...```
+...lots of JSON output...
+```
 
 Show monitor #1:
 
 ```$ zmapi monitor 1
 ...
-...lots of JSON output...```
+...lots of JSON output...
+```
 
 Show monitor #1 status:
 
@@ -44,7 +46,8 @@ Show daemon status for monitor #1 (default shows `zmc` daemon status):
 {
   "status": true,
   "statustext": "'zmc -m 1' running since 21/04/09 01:06:46, pid = 12303"
-}```
+}
+```
 
 Show `zma` status for that monitor:
 
@@ -52,7 +55,8 @@ Show `zma` status for that monitor:
 {
   "status": true,
   "statustext": "'zma -m 1' running since 21/04/09 01:06:52, pid = 12314"
-}```
+}
+```
 
 ...etc
 
@@ -61,7 +65,8 @@ Show `zma` status for that monitor:
 Show the time according to camera number 1:
 
 ```$ cam 1 time
-time CAM1 (192.168.5.10): "2021-04-09T15:02:48+02:00"```
+time CAM1 (192.168.5.10): "2021-04-09T15:02:48+02:00"
+```
 
 Set the time on all cameras to the current time:
 
@@ -73,12 +78,14 @@ time CAM3 (192.168.5.12): "OK"
 time CAM4 (192.168.5.13): "OK"
 time CAM5 (192.168.5.14): "OK"
 time CAM6 (192.168.5.15): "OK"
-time CAM7 (192.168.5.16): "OK"```
+time CAM7 (192.168.5.16): "OK"
+```
 
 Reboot camera #7:
 
 ```$ cam 7 reboot
-reboot CAM7 192.168.5.16): "OK"```
+reboot CAM7 192.168.5.16): "OK"
+```
 
 Show video encoding configuration for camera #1:
 
@@ -146,7 +153,8 @@ vencode_main CAM1 (192.168.5.10): {
     "regionY": 0
   },
   "textOverlays": ""
-}```
+}
+```
 
 Show which video encoding parameters can be changed on camera #1:
 ``` cam 1 vencode_main -H
@@ -161,12 +169,14 @@ Available parameters for vencode_main:
 	-f	frameRate (type i)
 	-e	enabled (type b)
 	-c	codecType (type s)
-	-b	constantBitrate (type i)```
+	-b	constantBitrate (type i)
+	```
 
 Set the channelName (the name shown in the bottom-right of the image) for camera #2 to *WATCHTOWER*:
 
 ``` cam 2 vencode_main -n WATCHTOWER
-vencode_main CAM2 (192.168.5.11): "OK"```
+vencode_main CAM2 (192.168.5.11): "OK"
+```
 
 ...etc
 
