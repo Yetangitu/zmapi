@@ -1,135 +1,264 @@
 #!/bin/bash
 
+trap "trap_error" TERM
+trap "trap_clean" EXIT
+export TOP_PID=$$
+
+version="1.1.2"
+release="20221001"
+
 username=""
 password=""
 server=""
 
-confdir="$HOME/.config/zmapi"
+confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
 config="zmapi.conf"
 access_token="access.json"
 refresh_token="refresh.json"
+opt_netrc="--netrc-optional"
+netrc=""
 
 if [ -f "$confdir/$config" ]; then
-	source  "$confdir/$config"
+    source  "$confdir/$config"
+    if [ -n "$proxy_username" -a -n "$proxy_password" ]; then
+        machine="${server##http*://}"
+        machine="${machine%%/*}"
+        netrc=$(mktemp --tmpdir zmapi_XXXXXXXXXX)
+        echo "machine $machine login $proxy_username password $proxy_password" > "$netrc"
+        opt_netrc="--netrc-file $netrc"
+    fi
 else
-	echo "configuration file ($confdir/$config) missing"
-	echo "new file created, edit it and restart program"
-	echo <<-EOT > "$confdir/$config"
-	username=
-	password=
-	server=
-	EOT
-	exit 1
+    echo "configuration file ($confdir/$config) missing"
+    echo "new file created, edit it and restart program"
+    echo <<-EOT > "$confdir/$config"
+    # ZoneMinder username, password and server:
+    username=
+    password=
+    server=
+    # Reverse proxy credentials:
+    # proxy_username=
+    # proxy_password=
+EOT
+    exit 1
 fi
 
 declare -A API=(
-	[monitors]='monitors.json|G'
-	[sourcetypes]='monitors/sourceTypes.json|G'
-	[monitor]='monitors/${1}.json|G'
-	[daemonstatus]='monitors/daemonStatus/id:${1}/daemon:${2:-zmc}.json|G'
-	[daemoncontrol]='monitors/daemonStatus/id:${1}/command:${2}/daemon:${3}.json|G'
-	[status]='monitors/${1}.json|G|.monitor.Monitor_Status'
-	[alarm]='monitors/alarm/id:${1}/command:${2:-status}.json|G'
-	[login]='host/login.json|P'
-	[events]='events/index/${1}.json|G'
-	[console_events]='events/consoleEvents/${1}.json|G'
-	[states]='states.json|G'
-	[restart]='states/change/restart.json|P'
-	[stop]='states/change/stop.json|P'
-	[start]='states/change/start.json|P'
-	[zones]='zones.json|G'
-	[load]='host/getLoad.json|G'
-	[daemoncheck]='host/daemonCheck.json|G'
-	[getdiskpercent]='host/getDiskPercent.json|G'
-	[storage]='storage.json|G'
-	[servers]='servers.json|G'
-	[configs]='configs.json|G'
+    [monitors]='monitors.json|G'
+    [sourcetypes]='monitors/sourceTypes.json|G'
+    [monitor]='monitors/${1}.json|G'
+    [daemonstatus]='monitors/daemonStatus/id:${1}/daemon:${2:-zmc}.json|G'
+    [daemoncontrol]='monitors/daemonStatus/id:${1}/command:${2}/daemon:${3}.json|G'
+    [status]='monitors/${1}.json|G|.monitor.Monitor_Status'
+    [alarm]='monitors/alarm/id:${1}/command:${2:-status}.json|G'
+    [login]='host/login.json|P'
+    [events]='events/index/${1}.json|G'
+    [console_events]='events/consoleEvents/${1}.json|G'
+    [states]='states.json|G'
+    [restart]='states/change/restart.json|P'
+    [stop]='states/change/stop.json|P'
+    [start]='states/change/start.json|P'
+    [zones]='zones.json|G'
+    [load]='host/getLoad.json|G'
+    [daemoncheck]='host/daemonCheck.json|G'
+    [getdiskpercent]='host/getDiskPercent.json|G'
+    [storage]='storage.json|G'
+    [servers]='servers.json|G'
+    [configs]='configs.json|G'
 )
 
 get () {
-	cmd="$1"
-	shift
-	token="$1"
-	shift
-	path=$(echo "${API[$cmd]}"|cut -d '|' -f 1)
-	filter=$(echo "${API[$cmd]}"|cut -d '|' -f 3)
-	if [ -z "$filter" ]; then
-		filter='.'
-	fi
-	if [ $# -gt 0 ]; then
-		path="$(eval echo "$path")"
-	fi
-	(if [ $token == "null" ]; then
-		curl -s -XGET "$server/api/${path}"
-	else
-		curl -s -XGET "$server/api/${path}?token=$token"
-		fi)|jq -r "$filter"
+    cmd="$1"
+    shift
+    token="$1"
+    shift
+    path=$(echo "${API[$cmd]}"|cut -d '|' -f 1)
+    filter=$(echo "${API[$cmd]}"|cut -d '|' -f 3)
+    if [ -z "$filter" ]; then
+        filter='.'
+    fi
+    if [ $# -gt 0 ]; then
+        path="$(eval echo "$path")"
+    fi
+    (if [ "$token" == "null" ]; then
+        curl $opt_netrc -s -XGET "$server/api/${path}"
+    else
+        curl $opt_netrc -s -XGET "$server/api/${path}?token=$token"
+        fi)|jq -r "$filter" 2>/dev/null
 
 }
 
 post () {
-	cmd="$1"
-	shift
-	token="$1"
-	shift
-	data="$*"
-	path="${API[$cmd]%|P}"
-	if [ $token == "null" ]; then
-		curl -s -XPOST -d "$data" "$server/api/${path}"
-	else
-		curl -s -XPOST -d "$data" "$server/api/${path}?token=$token"
-	fi
+    cmd="$1"
+    shift
+    token="$1"
+    shift
+    data="$*"
+    path="${API[$cmd]%|P}"
+    if [ "$token" == "null" ]; then
+        curl $opt_netrc -s -XPOST -d "$data" "$server/api/${path}"
+    else
+        curl $opt_netrc -s -XPOST -d "$data" "$server/api/${path}?token=$token"
+    fi
 }
 
 get_token () {
-	atoken_expires=110
-	rtoken_expires=1400
-	access=$(find "$confdir" -name "$access_token" -mmin -$atoken_expires)
-	refresh=$(find "$confdir" -name "$refresh_token" -mmin -$rtoken_expires)
-	if [[ -n "$access" ]]; then
-		token=$(jq -r '.access_token' "$confdir/$access_token")
-	else
-		if [[ -n "$refresh" ]]; then
-			rtoken=$(jq -r '.refresh_token' "$confdir/$refresh_token")
-			token=$(post login $rtoken|tee "$confdir/$access_token"|jq -r '.access_token')
-		else
-			data="user=$username&pass=$password"
-			token=$(post login null "$data" |tee "$confdir/$refresh_token"|jq -r '.access_token')
-		fi
-	fi
+    if [ -n "$username" -a -n "$password" ]; then
+        atoken_expires=110
+        rtoken_expires=1400
+        access=$(find "$confdir" -name "$access_token" -mmin -$atoken_expires)
+        refresh=$(find "$confdir" -name "$refresh_token" -mmin -$rtoken_expires)
+        if [[ -n "$access" ]]; then
+            token=$(jq -r '.access_token' "$confdir/$access_token")
+        else
+            if [[ -n "$refresh" ]]; then
+                rtoken=$(jq -r '.refresh_token' "$confdir/$refresh_token")
+                token=$(post login $rtoken|tee "$confdir/$access_token"|jq -r '.access_token')
+            else
+                data="user=$username&pass=$password"
+                token=$(post login null "$data" |tee "$confdir/$refresh_token"|jq -r '.access_token')
+            fi
+        fi
+    else
+        token="null"
+    fi
 
-	echo -n $token
+    echo -n $token
 }
 
-help () {
-        printf "Use: $(basename $0) command [[parameter1] [[parameter2...]]]\n\n"
-        printf "available commands:\n\n"
-        printf '%s\n' "${!API[@]}"|sort
+cleanup () {
+    if [ -n "$netrc" -a -f "$netrc" ]; then
+        rm "$netrc"
+    fi
+}
+
+# echo error message to stderr and terminate main
+exit_with_error () {
+        echo -e "$(basename "$0"): $*" >&2
+
+        kill -s TERM "$TOP_PID"
+}
+
+trap_error () {
+    cleanup
+
+        exit 1
+}
+
+trap_clean () {
+    cleanup
+
         exit
 }
 
+help () {
+    printf "$(basename $(readlink -f "$0")) version $version\n\n"
+ 
+    cat <<- EOF
+    Use: $(basename $(readlink -f "$0")) command [[parameter1] [[parameter2...]]]
+
+    A simple, shell (bash) based ZoneMinder API CLI which, combined with a
+    camera control (cam) and watchdog (camwatch) can be used to keep a
+    ZoneMinder installation up and running without having to deal with those
+    clunky web interfaces.
+
+    The ZoneMinder API CLI script (zmapi) is independent of the camera control
+    scripts (cam and camwatch) and each can be used by itself.
+
+    INSTALLATION
+
+    Copy the scripts (zmapi, cam and camwatch) to a directory in the PATH.
+    Either copy and edit the configuration files (zmapi.conf, cam.conf and
+    camwatch.conf) to the $HOME/.config/zmapi directory for the user who will
+    executre these scripts. If the configuration files are not present on first
+    run the scripts will create them with default values on the first run and
+    abort, in that case edit the created files before continuing.
+
+    Run zmapi and cam without parameters for an overview of the available
+    commands, alternatively have a look at the source for more insight. The
+    available commands are defined in the API (zmapi) or SDK (cam) arrays, this
+    is also where new commands can be added if new API endpoints are
+    discovered.
+
+    COMMANDS
+
+EOF
+
+    printf '\t%s\n' "${!API[@]}"|sort
+
+    cat <<- 'EOF'
+
+    EXAMPLES
+
+    Show all monitors:
+
+        $ zmapi monitors
+        ...
+        ...lots of JSON output...
+
+    Show monitor #1:
+
+        $ zmapi monitor 1
+        ...
+        ...lots of JSON output...
+
+    Show monitor #1 status:
+
+        $ zmapi status 1
+        {
+          "MonitorId": "1",
+          "Status": "Connected",
+          "CaptureFPS": "10.00",
+          "AnalysisFPS": "10.00",
+          "CaptureBandwidth": "234455"
+        }
+
+    Show daemon status for monitor #1 (default shows zmc daemon status):
+
+        $ zmapi daemonstatus 1
+        {
+          "status": true,
+          "statustext": "'zmc -m 1' running since 21/04/09 01:06:46, pid = 12303"
+        }
+
+    Show zma status for that monitor:
+
+        $ zmapi daemonstatus 1 zma
+        {
+          "status": true,
+          "statustext": "'zma -m 1' running since 21/04/09 01:06:52, pid = 12314"
+        }
+
+    ...etc
+EOF
+
+    exit
+}
 
 token=$(get_token)
 
 cmd="$1"
 shift
 
-if ! test ${API[$cmd]+_}; then
-	printf "unknown command $cmd\n\n"
+if [ -z "$cmd" -o "$cmd" == "help" ]; then
 	help
-	exit 1
+    exit
+fi
+
+if ! test ${API[$cmd]+_}; then
+    printf "zmapi: unknown command '$cmd'\n"
+    exit 1
 fi
 
 method=$(echo "${API[$cmd]}"|cut -d '|' -f 2)
 
 case "$method" in
-	G)
-		get "$cmd" "$token" "$@"
-		;;
-	P)
-		post "$cmd" "$token" "$@"
-		;;
-	*)
-		printf "unknown method $method for command $cmd"
-		;;
+    G)
+        get "$cmd" "$token" "$@"
+        ;;
+    P)
+        post "$cmd" "$token" "$@"
+        ;;
+    *)
+        printf "unknown method $method for command $1"
+        ;;
 esac

@@ -2,6 +2,9 @@
 
 shopt -s extglob
 
+version="1.0.2"
+release="20221001"
+
 declare -A camera
 
 username="admin"
@@ -9,22 +12,22 @@ password=""
 viewer="display"
 player="mpv"
 
-confdir="$HOME/.config/zmapi"
+confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
 config="cam.conf"
 
 if [ -f "$confdir/$config" ]; then
-	source  "$confdir/$config"
+    source  "$confdir/$config"
 else
-	echo "configuration file ($confdir/$config) missing"
-	echo "new file created, edit it and restart program"
-	echo <<-EOT > "$confdir/$config"
+    echo "configuration file ($confdir/$config) missing"
+    echo "new file created, edit it and restart program"
+    cat <<-EOT > "$confdir/$config"
 	camera=()
 	username=
 	password=
 	viewer=
 	player=
-	EOT
-	exit 1
+EOT
+    exit 1
 fi
 
 auth=$(echo -n "$username:$password"|base64)
@@ -121,268 +124,416 @@ declare -A video_hue=()
 declare -A video_sharpness=()
 
 is_json () {
-	jq -e . >/dev/null 2>&1 <<<"$@"
+    jq -e . >/dev/null 2>&1 <<<"$@"
 }
 
 cam_url () {
-	cam="$1"
-	echo -n "http://${username}:${password}@${camera[$cam]}"
+    cam="$1"
+    echo -n "http://${username}:${password}@${camera[$cam]}"
 }
 
 get () {
-	cam="$1"
-	cmd="$2"
-	curl -s "$headers" "$(cam_url $cam)${SDK[$cmd]}"
+    cam="$1"
+    cmd="$2"
+    curl -s "$headers" "$(cam_url $cam)${SDK[$cmd]}"
 }
 
 put () {
-	cam="$1"
-	cmd="$2"
-	data="$3"
-	curl -g -s "$headers" "$(cam_url $cam)${SDK[$cmd]}" -X PUT --data-raw "$(echo "$data")"
+    cam="$1"
+    cmd="$2"
+    data="$3"
+    curl -g -s "$headers" "$(cam_url $cam)${SDK[$cmd]}" -X PUT --data-raw "$(echo "$data")"
 }
 
 get_json () {
-	cam="$1"
-	command="$2"
-	jqq="$3"
-	if [ -z "$jqq" ]; then
-		jqq="."
-	fi
-	echo -n "$command CAM$cam (${camera[$cam]}): "
-	result=$(get "$cam" "$command")
-	if is_json "$result"; then
-		jq "$jqq"<<<"$result"
-	else
-		echo "$result"
-	fi
+    cam="$1"
+    command="$2"
+    jqq="$3"
+    if [ -z "$jqq" ]; then
+        jqq="."
+    fi
+    echo -n "$command CAM$cam (${camera[$cam]}): "
+    result=$(get "$cam" "$command")
+    if is_json "$result"; then
+        jq "$jqq"<<<"$result"
+    else
+        echo "$result"
+    fi
 }
 
 put_json () {
-	cam="$1"
-	command="$2"
-	data="$3"
-	jqq="$4"
-	if [ -z "$jqq" ]; then
-		jqq=".statusMessage"
-	fi
-	echo -n "$command CAM$cam (${camera[$cam]}): "
-	put "${cam}" "$command" "$data"|jq "$jqq"
+    cam="$1"
+    command="$2"
+    data="$3"
+    jqq="$4"
+    if [ -z "$jqq" ]; then
+        jqq=".statusMessage"
+    fi
+    echo -n "$command CAM$cam (${camera[$cam]}): "
+    put "${cam}" "$command" "$data"|jq "$jqq"
 }
 
 get_text () {
-	cam="$1"
-	echo -n "$command CAM$cam (${camera[$cam]}):"
-	get "$cam" "$command"|tr -cd "[:print:]\n\t"
-	echo
+    cam="$1"
+    echo -n "$command CAM$cam (${camera[$cam]}):"
+    get "$cam" "$command"|tr -cd "[:print:]\n\t"
+    echo
 }
 
 check_range () {
-	value="$1"
-	range=$(echo "$2"|tr ',' '|')
-	field="$3"
-	if [[ "$range" == "$2" ]]; then
-		min=$(echo "$2"|cut -d '-' -f 1)
-		max=$(echo "$2"|cut -d '-' -f 2)
-		if [[ "$min" == "$max" ]]; then
-			printf "$field: invalid range specification\n\n"
-			exit 1
-		else
-			if [[ $value -ge $min && $value -le $max ]]; then
-				return
-			fi
-		fi
-	else
-		if [[ "$value" == @($range) ]]; then
-			return
-		fi
-	fi
+    value="$1"
+    range=$(echo "$2"|tr ',' '|')
+    field="$3"
+    if [[ "$range" == "$2" ]]; then
+        min=$(echo "$2"|cut -d '-' -f 1)
+        max=$(echo "$2"|cut -d '-' -f 2)
+        if [[ "$min" == "$max" ]]; then
+            printf "$field: invalid range specification\n\n"
+            exit 1
+        else
+            if [[ $value -ge $min && $value -le $max ]]; then
+                return
+            fi
+        fi
+    else
+        if [[ "$value" == @($range) ]]; then
+            return
+        fi
+    fi
 
-	printf "$field: value '$value' invalid\n\n"
-	printf "allowed values: $2\n"
-	exit 1
+    printf "$field: value '$value' invalid\n\n"
+    printf "allowed values: $2\n"
+    exit 1
 }
 
 mutate () {
-	data="$1"
-	fieldtype="$2"
-	value="$3"
-	field=$(echo "$fieldtype"|cut -d ':' -f 1)
-	type=$(echo "$fieldtype"|cut -d ':' -f 2)
-	range=$(echo "$fieldtype"|cut -d ':' -f 3)
-	if [[ -n $range ]]; then
-		check_range "$value" "$range" "$field"
-	fi
-	case $type in
-		b|i)
-			jq ".$field=$value" <<<"$data"
-			;;
-		s)
-			jq ".$field=\"$value\"" <<<"$data"
-			;;
-		*)
-			jq ".$field=\"$value\"" <<<"$data"
-			;;
-	esac
+    data="$1"
+    fieldtype="$2"
+    value="$3"
+    field=$(echo "$fieldtype"|cut -d ':' -f 1)
+    type=$(echo "$fieldtype"|cut -d ':' -f 2)
+    range=$(echo "$fieldtype"|cut -d ':' -f 3)
+    if [[ -n $range ]]; then
+        check_range "$value" "$range" "$field"
+    fi
+    case $type in
+        b|i)
+            jq ".$field=$value" <<<"$data"
+            ;;
+        s)
+            jq ".$field=\"$value\"" <<<"$data"
+            ;;
+        *)
+            jq ".$field=\"$value\"" <<<"$data"
+            ;;
+    esac
 }
 
 help_command () {
-	command="$1"
-	declare -n opts="$command"
-	if [[ ${#opts[@]} -lt 1 ]]; then
-		printf "The $command command takes a single parameter and has no options\n"
-	else
-		printf "Available parameters for $command:\n\n"
-		for n in ${!opts[@]}; do printf "\t-$n\t$(echo "${opts[$n]}"| sed 's/:/ (type /;s/:/ values:/;s/$/\)/')\n";done
-	fi
-	echo
-	exit
+    command="$1"
+    declare -n opts="$command"
+    if [[ ${#opts[@]} -lt 1 ]]; then
+        printf "The $command command takes a single parameter and has no options\n"
+    else
+        printf "Available parameters for $command:\n\n"
+        for n in ${!opts[@]}; do printf "\t-$n\t$(echo "${opts[$n]}"| sed 's/:/ (type /;s/:/ values:/;s/$/\)/')\n";done
+    fi
+    echo
+    exit
 }
 
 
 config () {
-	cam="$1"
-	shift
-	command="$1"
-	shift
-	cam_ip="${camera[$cam]}"
-	declare -n opts="$command"
-	optstr="$(tr ' ' ':'<<<"${!opts[@]}"):H"
-	optlst="$(echo "${!opts[@]}"|sed -e 's/ /|/g')"
-	cc=$(get "$cam" "$command")
-	local OPTIND
-	while getopts "$optstr" OPTION; do
-		optset=1
-		case $OPTION in
-			H)
-				help_command $command
-				;;
-			@($optlst))
-				cc="$(mutate "$cc" "${opts[$OPTION]}" "$OPTARG")" || exit_with_error "$cc"
-				;;
-			*)
-				echo "unknown option $OPTION"
-				exit
-				;;
-		esac
-	done
-	if [ -v optset ];then
-		put_json "$cam" "$command" "$cc"
-	elif (declare -p $opts 2>&1>/dev/null) &&  [[ -z $optlst ]] && [[ -n $1 ]]; then
-		put_json "$cam" "$command" "\"$1\""
-	else
-		get_json "$cam" "$command"
-	fi
+    cam="$1"
+    shift
+    command="$1"
+    shift
+    cam_ip="${camera[$cam]}"
+    declare -n opts="$command"
+    optstr="$(tr ' ' ':'<<<"${!opts[@]}"):H"
+    optlst="$(echo "${!opts[@]}"|sed -e 's/ /|/g')"
+    cc=$(get "$cam" "$command")
+    local OPTIND
+    while getopts "$optstr" OPTION; do
+        optset=1
+        case $OPTION in
+            H)
+                help_command $command
+                ;;
+            @($optlst))
+                cc="$(mutate "$cc" "${opts[$OPTION]}" "$OPTARG")" || exit_with_error "$cc"
+                ;;
+            *)
+                echo "unknown option $OPTION"
+                exit
+                ;;
+        esac
+    done
+    if [ -v optset ];then
+        put_json "$cam" "$command" "$cc"
+    elif (declare -p $opts 2>&1>/dev/null) &&  [[ -z $optlst ]] && [[ -n $1 ]]; then
+        put_json "$cam" "$command" "\"$1\""
+    else
+        get_json "$cam" "$command"
+    fi
 }
 
 view () {
-	cam="$1"
-	cmd="$2"
-	$viewer "$(cam_url $cam)${SDK[$cmd]}" &
+    cam="$1"
+    cmd="$2"
+    $viewer "$(cam_url $cam)${SDK[$cmd]}" &
 }
 
 watch () {
-	cam="$1"
-	cmd="$2"
-	$player "rtsp://$username:$password@${camera[$cam]}${SDK[$cmd]}" &
+    cam="$1"
+    cmd="$2"
+    $player "rtsp://$username:$password@${camera[$cam]}${SDK[$cmd]}" &
 }
 
 is_ip () {
-	if [[ $1 =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]
-		then
-		#echo "IP is $1"
-		ret=0
-	else
-		#echo "$1 is not IP"
-      		ret=1
-   	fi
-	return $ret
+    if [[ $1 =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]
+        then
+        #echo "IP is $1"
+        ret=0
+    else
+        #echo "$1 is not IP"
+            ret=1
+    fi
+    return $ret
 }
 
 cam_for_ip () {
-	for cam in ${!camera[@]}; do
-		if [[ "${camera[$cam]}" == "$1" ]]; then
-			echo -n $cam
-			return
-		fi
-	done
-	exit_with_error "$1: unknown camera IP"
+    for cam in ${!camera[@]}; do
+        if [[ "${camera[$cam]}" == "$1" ]]; then
+            echo -n $cam
+            return
+        fi
+    done
+    exit_with_error "$1: unknown camera IP"
 }
 
 help () {
-	printf "Use: $(basename $0) command [camera|IP address|'all']\n\n"
-	printf "available commands:\n\n"
-	printf '%s\n' "${!SDK[@]}"|sort
-	exit
+    printf "$(basename $(readlink -f "$0")) version $version\n\n"
+    cat <<EOF
+    Use: $(basename $0) command [camera|IP address|'all']
+
+    A simple, shell (bash) based camera API CLI which, together with a watchdog
+    (camwatch) can be used to keep a flock of IP cameras up and running without
+    having to deal with those clunky web interfaces.
+
+    This tool is specific to (XiongMai-based) cameras using the 'NetSDK' API and
+    will need to be adapted to other camera types.
+
+    INSTALLATION
+
+    Copy the scripts (zmapi, cam and camwatch) to a directory in the PATH. Either
+    copy and edit the configuration files (zmapi.conf, cam.conf and camwatch.conf)
+    to the \$HOME/.config/zmapi directory for the user who will executre these
+    scripts. If the configuration files are not present on first run the scripts
+    will create them with default values on the first run and abort, in that case
+    edit the created files before continuing.
+
+    Run zmapi and cam without parameters for an overview of the available commands,
+    alternatively have a look at the source for more insight. The available
+    commands are defined in the API (zmapi) or SDK (cam) arrays, this is also where
+    new commands can be added if new API endpoints are discovered.
+
+    COMMANDS
+
+EOF
+
+    printf '\t%s\n' "${!SDK[@]}"|sort
+
+    cat <<'EOF'
+
+    EXAMPLES
+
+    Show the time according to camera number 1:
+
+        $ cam 1 time
+        time CAM1 (192.168.5.10): "2021-04-09T15:02:48+02:00"
+
+    Set the time on all cameras to the current time:
+
+        $ cam all time $(date -Iseconds)
+        time CAM1 (192.168.5.10): "OK"
+        time CAM2 (192.168.5.11): "OK"
+        time CAM3 (192.168.5.12): "OK"
+        time CAM4 (192.168.5.13): "OK"
+        time CAM5 (192.168.5.14): "OK"
+        time CAM6 (192.168.5.15): "OK"
+        time CAM7 (192.168.5.16): "OK"
+
+    Reboot camera #7:
+
+        $ cam 7 reboot
+        reboot CAM7 192.168.5.16): "OK"
+
+    Show video encoding configuration for camera #1:
+
+        $ cam 1 vencode_main
+        vencode_main CAM1 (192.168.5.10): {
+          "id": 101,
+          "enabled": true,
+          "videoInputChannelID": 101,
+          "codecType": "H.264",
+          "h264Profile": "high",
+          "freeResolution": false,
+          "channelName": "CAM1",
+          "bitRateControlType": "VBR",
+          "resolution": "1920x1080",
+          "constantBitRate": 2048,
+          "frameRate": 10,
+          "keyFrameInterval": 50,
+          "expandChannelNameOverlay": [
+            {
+              "expandChannelName": "cam1",
+              "id": 1,
+              "enabled": false,
+              "regionX": 0,
+              "regionY": 0
+            },
+            {
+              "expandChannelName": "",
+              "id": 2,
+              "enabled": false,
+              "regionX": 0,
+              "regionY": 0
+            },
+            {
+              "expandChannelName": "",
+              "id": 3,
+              "enabled": false,
+              "regionX": 0,
+              "regionY": 0
+            },
+            {
+              "expandChannelName": "",
+              "id": 4,
+              "enabled": false,
+              "regionX": 0,
+              "regionY": 0
+            }
+          ],
+          "channelNameOverlay": {
+            "enabled": true,
+            "regionX": 0,
+            "regionY": 0
+          },
+          "datetimeOverlay": {
+            "enabled": true,
+            "regionX": 1,
+            "regionY": 1,
+            "dateFormat": "YYYY/MM/DD",
+            "timeFormat": 24,
+            "displayWeek": true,
+            "displayChinese": false
+          },
+          "deviceIDOverlay": {
+            "enabled": false,
+            "regionX": 0,
+            "regionY": 0
+          },
+          "textOverlays": ""
+        }
+
+    Show which video encoding parameters can be changed on camera #1:
+
+        $ cam 1 vencode_main -H
+        Available parameters for vencode_main:
+
+            -F	freeResolution (type b)
+            -t	bitRateControlType (type s)
+            -r	resolution (type s)
+            -p	h264Profile (type s)
+            -n	channelName (type s)
+            -k	keyFrameInterval (type i)
+            -f	frameRate (type i)
+            -e	enabled (type b)
+            -c	codecType (type s)
+            -b	constantBitrate (type i)
+
+    Set the channelName (the name shown in the bottom-right of the image) for camera #2 to WATCHTOWER:
+
+        $ cam 2 vencode_main -n WATCHTOWER
+        vencode_main CAM2 (192.168.5.11): "OK"
+
+    ...etc
+EOF
+    exit
 }
 
 exit_with_error () {
-	printf "ERROR: $@\n"
-	exit 1
+    printf "ERROR: $@\n"
+    exit 1
 }
 
 # ---------------------------------------------------
 
 if is_ip "$1"; then
-	cam=$(cam_for_ip "$1")    
-	parameters=( "$@" )
-	parameters[0]=$cam
-	set -- "${parameters[@]}"
+    cam=$(cam_for_ip "$1")    
+    parameters=( "$@" )
+    parameters[0]=$cam
+    set -- "${parameters[@]}"
 fi
 
 case $1 in
 
-	@($camlst))
-		cam_s=$1
-		cam_f=$1
-		shift
-		;;
-	all)
-		cam_s=1
-		cam_f=8
-		shift
-		;;
-	*)
-		printf "camera number, IP address or 'all' missing\n\n"
-		help
+    @($camlst))
+        cam_s=$1
+        cam_f=$1
+        shift
+        ;;
+    all)
+        cam_s=1
+        cam_f=8
+        shift
+        ;;
+    help)
+        help
+        exit
+        ;;
+    *)
+        exit_with_error "camera number, IP address or 'all' missing"
+        ;;
 esac
 
 if [[ -z $1 ]]; then
-	help
+    help
 else
-	command="$1"
-	shift
+    command="$1"
+    shift
 fi
 
 if ! test ${SDK[$command]+_}; then
-	printf "unknown command $command\n\n"
-	help
+    printf "unknown command $command\n\n"
+    help
 fi
 
 for cam in $(seq "$cam_s" "$cam_f");do
-	case "$command" in
-		load)
-			get_json "$cam" "$command" ".CPU.Usage"
-			;;
-		health|config|log)
-			get_text "$cam"
-			;;
-		reboot)
-			put_json "$cam" "$command" '{true}'
-			;;
-		snapshot)
-			view "$cam" "$command"
-			;;
-		view_main|view_sub)
-			watch "$cam" "$command"
-			;;
-		help)
-			help
-			;;
-		*)
-			config "$cam" "$command" "$@"
-			;;
-	esac
+    case "$command" in
+        load)
+            get_json "$cam" "$command" ".CPU.Usage"
+            ;;
+        health|config|log)
+            get_text "$cam"
+            ;;
+        reboot)
+            put_json "$cam" "$command" '{true}'
+            ;;
+        snapshot)
+            view "$cam" "$command"
+            ;;
+        view_main|view_sub)
+            watch "$cam" "$command"
+            ;;
+        help)
+            help
+            ;;
+        *)
+            config "$cam" "$command" "$@"
+            ;;
+    esac
 done
 
 exit
