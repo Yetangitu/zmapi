@@ -4,67 +4,99 @@ trap "trap_error" TERM
 trap "trap_clean" EXIT
 export TOP_PID=$$
 
-version="1.1.2"
+version="1.1.3"
 release="20221001"
 
-username=""
-password=""
-server=""
+main () {
+    username=""
+    password=""
+    server=""
 
-confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
-config="zmapi.conf"
-access_token="access.json"
-refresh_token="refresh.json"
-opt_netrc="--netrc-optional"
-netrc=""
+    confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
+    config="zmapi.conf"
+    access_token="access.json"
+    refresh_token="refresh.json"
+    opt_netrc="--netrc-optional"
+    netrc=""
 
-if [ -f "$confdir/$config" ]; then
-    source  "$confdir/$config"
-    if [ -n "$proxy_username" -a -n "$proxy_password" ]; then
-        machine="${server##http*://}"
-        machine="${machine%%/*}"
-        netrc=$(mktemp --tmpdir zmapi_XXXXXXXXXX)
-        echo "machine $machine login $proxy_username password $proxy_password" > "$netrc"
-        opt_netrc="--netrc-file $netrc"
+    if [ -f "$confdir/$config" ]; then
+        source  "$confdir/$config"
+        if [ -n "$proxy_username" -a -n "$proxy_password" ]; then
+            machine="${server##http*://}"
+            machine="${machine%%/*}"
+            netrc=$(mktemp --tmpdir zmapi_XXXXXXXXXX)
+            echo "machine $machine login $proxy_username password $proxy_password" > "$netrc"
+            opt_netrc="--netrc-file $netrc"
+        fi
+    else
+        echo "configuration file ($confdir/$config) missing"
+        echo "new file created, edit it and restart program"
+        mkdir -p "$confdir"
+        cat <<-EOT > "$confdir/$config"
+	# ZoneMinder username, password and server:
+	username=
+	password=
+	server=
+	# Reverse proxy credentials:
+	# proxy_username=
+	# proxy_password=
+	EOT
+        exit 1
     fi
-else
-    echo "configuration file ($confdir/$config) missing"
-    echo "new file created, edit it and restart program"
-    echo <<-EOT > "$confdir/$config"
-    # ZoneMinder username, password and server:
-    username=
-    password=
-    server=
-    # Reverse proxy credentials:
-    # proxy_username=
-    # proxy_password=
-EOT
-    exit 1
-fi
 
-declare -A API=(
-    [monitors]='monitors.json|G'
-    [sourcetypes]='monitors/sourceTypes.json|G'
-    [monitor]='monitors/${1}.json|G'
-    [daemonstatus]='monitors/daemonStatus/id:${1}/daemon:${2:-zmc}.json|G'
-    [daemoncontrol]='monitors/daemonStatus/id:${1}/command:${2}/daemon:${3}.json|G'
-    [status]='monitors/${1}.json|G|.monitor.Monitor_Status'
-    [alarm]='monitors/alarm/id:${1}/command:${2:-status}.json|G'
-    [login]='host/login.json|P'
-    [events]='events/index/${1}.json|G'
-    [console_events]='events/consoleEvents/${1}.json|G'
-    [states]='states.json|G'
-    [restart]='states/change/restart.json|P'
-    [stop]='states/change/stop.json|P'
-    [start]='states/change/start.json|P'
-    [zones]='zones.json|G'
-    [load]='host/getLoad.json|G'
-    [daemoncheck]='host/daemonCheck.json|G'
-    [getdiskpercent]='host/getDiskPercent.json|G'
-    [storage]='storage.json|G'
-    [servers]='servers.json|G'
-    [configs]='configs.json|G'
-)
+    declare -A API=(
+        [monitors]='monitors.json|G'
+        [sourcetypes]='monitors/sourceTypes.json|G'
+        [monitor]='monitors/${1}.json|G'
+        [daemonstatus]='monitors/daemonStatus/id:${1}/daemon:${2:-zmc}.json|G'
+        [daemoncontrol]='monitors/daemonStatus/id:${1}/command:${2}/daemon:${3}.json|G'
+        [status]='monitors/${1}.json|G|.monitor.Monitor_Status'
+        [alarm]='monitors/alarm/id:${1}/command:${2:-status}.json|G'
+        [login]='host/login.json|P'
+        [events]='events/index/${1}.json|G'
+        [console_events]='events/consoleEvents/${1}.json|G'
+        [states]='states.json|G'
+        [restart]='states/change/restart.json|P'
+        [stop]='states/change/stop.json|P'
+        [start]='states/change/start.json|P'
+        [zones]='zones.json|G'
+        [load]='host/getLoad.json|G'
+        [daemoncheck]='host/daemonCheck.json|G'
+        [getdiskpercent]='host/getDiskPercent.json|G'
+        [storage]='storage.json|G'
+        [servers]='servers.json|G'
+        [configs]='configs.json|G'
+    )
+
+    token=$(get_token)
+
+    cmd="$1"
+    shift
+
+    if [ -z "$cmd" -o "$cmd" == "help" ]; then
+        help
+        exit
+    fi
+
+    if ! test ${API[$cmd]+_}; then
+        printf "zmapi: unknown command '$cmd'\n"
+        exit 1
+    fi
+
+    method=$(echo "${API[$cmd]}"|cut -d '|' -f 2)
+
+    case "$method" in
+        G)
+            get "$cmd" "$token" "$@"
+            ;;
+        P)
+            post "$cmd" "$token" "$@"
+            ;;
+        *)
+            printf "unknown method $method for command $1"
+            ;;
+    esac
+}
 
 get () {
     cmd="$1"
@@ -234,31 +266,4 @@ EOF
     exit
 }
 
-token=$(get_token)
-
-cmd="$1"
-shift
-
-if [ -z "$cmd" -o "$cmd" == "help" ]; then
-	help
-    exit
-fi
-
-if ! test ${API[$cmd]+_}; then
-    printf "zmapi: unknown command '$cmd'\n"
-    exit 1
-fi
-
-method=$(echo "${API[$cmd]}"|cut -d '|' -f 2)
-
-case "$method" in
-    G)
-        get "$cmd" "$token" "$@"
-        ;;
-    P)
-        post "$cmd" "$token" "$@"
-        ;;
-    *)
-        printf "unknown method $method for command $1"
-        ;;
-esac
+main "$@"

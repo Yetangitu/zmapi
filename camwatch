@@ -16,11 +16,12 @@ if [ -f "$confdir/$config" ]; then
 else
     echo "configuration file ($confdir/$config) missing"
     echo "new file created, edit it and restart program"
+    mkdir -p "$confdir"
     cat <<-EOT > "$confdir/$config"
 	monitors=()
 	threshold=3
 	mon_stat_store="$confdir/mon_stat_store"
-EOT
+	EOT
     exit 1
 fi
 

@@ -2,126 +2,195 @@
 
 shopt -s extglob
 
-version="1.0.2"
+version="1.0.3"
 release="20221001"
 
-declare -A camera
+main () {
+    declare -A camera
 
-username="admin"
-password=""
-viewer="display"
-player="mpv"
+    username="admin"
+    password=""
+    viewer="display"
+    player="mpv"
 
-confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
-config="cam.conf"
+    confdir="${XDG_CONFIG_HOME:-$HOME/.config}/zmapi"
+    config="cam.conf"
 
-if [ -f "$confdir/$config" ]; then
-    source  "$confdir/$config"
-else
-    echo "configuration file ($confdir/$config) missing"
-    echo "new file created, edit it and restart program"
-    cat <<-EOT > "$confdir/$config"
+    if [ -f "$confdir/$config" ]; then
+        source  "$confdir/$config"
+    else
+        echo "configuration file ($confdir/$config) missing"
+        echo "new file created, edit it and restart program"
+        mkdir "$confdir"
+        cat <<-EOT > "$confdir/$config"
 	camera=()
 	username=
 	password=
 	viewer=
 	player=
-EOT
-    exit 1
-fi
+	EOT
+        exit 1
+    fi
 
-auth=$(echo -n "$username:$password"|base64)
-headers="-H 'Authorization: Basic $auth'"
-# headers="-H 'Authorization: Basic $auth' -H 'Cookie: juanipcam_lang=en; login=${username}%2C${password}; sync_time=true; usr=$username; pwd=$password'"
+    auth=$(echo -n "$username:$password"|base64)
+    headers="-H 'Authorization: Basic $auth'"
+    # headers="-H 'Authorization: Basic $auth' -H 'Cookie: juanipcam_lang=en; login=${username}%2C${password}; sync_time=true; usr=$username; pwd=$password'"
 
-camlst=$(echo -n "${!camera[@]}"|tr ' ' '|')
+    camlst=$(echo -n "${!camera[@]}"|tr ' ' '|')
 
-declare -A SDK=(
-    [audio_encode]=/NetSDK/Audio/encode/channel/101
-    [audio_input]=/NetSDK/Audio/input/channel/1
-    [image]=/NetSDK/Image
-    [image_ircut]=/NetSDK/Image/irCutFilter
-    [image_denoise3d]=/NetSDK/Image/denoise3d
-    [image_sharpness]=/NetSDK/Image/manualSharpness
-    [image_videomode]=/NetSDK/Image/videoMode/properties/
-    [image_wdr]=/NetSDK/Image/wdr
-    [network_dns]=/NetSDK/Network/DNS
-    [network_esee]=/NetSDK/Network/ESee
-    [network_lan1]=/NetSDK/Network/interface/1/lan
-    [network_lan4]=/NetSDK/Network/interface/1/lan
-    [network_wifi]=/NetSDK/Network/interface/4/wireless
-    [network_port]=/NetSDK/Network/port
-    [wifi_allstainfo]=/NetSDK/Network/wireless/allStaInfo
-    [wifi_stationsignal]=/NetSDK/Network/wireless/stationSignal
-    [wifi_status]=/NetSDK/Network/Wireless/status
-    [ptz]=/NetSDK/PTZ/channel/1/control
-    [devinfo]=/NetSDK/System/deviceInfo
-    [reboot]=/NetSDK/System/operation/reboot
-    [time]=/NetSDK/System/time/localtime
-    [time_ntp]=/NetSDK/System/time/ntp
-    [time_rtc]=/NetSDK/System/time/rtc
-    [time_zone]=/NetSDK/System/time/timeZone
-    [time_calender]=/NetSDK/System/time/calendarStyle
-    [vencode_main]=/NetSDK/Video/encode/channel/101
-    [vencode_sub]=/NetSDK/Video/encode/channel/102
-    [video_channeloverlay]=/NetSDK/Video/encode/channel/101/channelNameOverlay
-    [video_extraoverlay]=/NetSDK/Video/encode/channel/101
-    [video_timeoverlay]=/NetSDK/Video/encode/channel/101/datetimeOverlay
-    [video_input]=/NetSDK/Video/input/channel/1
-    [video_brightness]=/NetSDK/Video/input/channel/1/brightnessLevel
-    [video_contrast]=/NetSDK/Video/input/channel/1/contrastLevel
-    [video_flip]=/NetSDK/Video/input/channel/1/flipEnabled
-    [video_mirror]=/NetSDK/Video/input/channel/1/mirrorEnabled
-    [video_hue]=/NetSDK/Video/input/channel/1/hueLevel
-    [video_mask]=/NetSDK/Video/input/channel/1/PrivacyMasks
-    [video_saturation]=/NetSDK/Video/input/channel/1/saturationLevel
-    [video_sharpness]=/NetSDK/Video/input/channel/1/sharpnessLevel
-    [motiondetection]=/NetSDK/Video/motionDetection/channel/1
-    [load]="/_SDK/info/monitor.php?nonce=123"
-    [ps]="/_SDK/info/monitor.php?nonce=123"
-    [debuginfo]="/_SDK/info/device.php?nonce=123"
-    [eventinfo]="/_SDK/info/event.php?nonce=123"
-    [health]=/Anyka/health
-    [config]=/Anyka/config
-    [log]=/Anyka/log
-    [oem]=/custom/OEM
-    [view_main]="/ch0_0.264"
-    [view_sub]="/ch0_1.264"
-    [snapshot]=/snapshot
-    [user_list]="/user/user_list.xml?username=$username&password=$password"
-)
+    declare -A SDK=(
+        [audio_encode]=/NetSDK/Audio/encode/channel/101
+        [audio_input]=/NetSDK/Audio/input/channel/1
+        [image]=/NetSDK/Image
+        [image_ircut]=/NetSDK/Image/irCutFilter
+        [image_denoise3d]=/NetSDK/Image/denoise3d
+        [image_sharpness]=/NetSDK/Image/manualSharpness
+        [image_videomode]=/NetSDK/Image/videoMode/properties/
+        [image_wdr]=/NetSDK/Image/wdr
+        [network_dns]=/NetSDK/Network/DNS
+        [network_esee]=/NetSDK/Network/ESee
+        [network_lan1]=/NetSDK/Network/interface/1/lan
+        [network_lan4]=/NetSDK/Network/interface/1/lan
+        [network_wifi]=/NetSDK/Network/interface/4/wireless
+        [network_port]=/NetSDK/Network/port
+        [wifi_allstainfo]=/NetSDK/Network/wireless/allStaInfo
+        [wifi_stationsignal]=/NetSDK/Network/wireless/stationSignal
+        [wifi_status]=/NetSDK/Network/Wireless/status
+        [ptz]=/NetSDK/PTZ/channel/1/control
+        [devinfo]=/NetSDK/System/deviceInfo
+        [reboot]=/NetSDK/System/operation/reboot
+        [time]=/NetSDK/System/time/localtime
+        [time_ntp]=/NetSDK/System/time/ntp
+        [time_rtc]=/NetSDK/System/time/rtc
+        [time_zone]=/NetSDK/System/time/timeZone
+        [time_calender]=/NetSDK/System/time/calendarStyle
+        [vencode_main]=/NetSDK/Video/encode/channel/101
+        [vencode_sub]=/NetSDK/Video/encode/channel/102
+        [video_channeloverlay]=/NetSDK/Video/encode/channel/101/channelNameOverlay
+        [video_extraoverlay]=/NetSDK/Video/encode/channel/101
+        [video_timeoverlay]=/NetSDK/Video/encode/channel/101/datetimeOverlay
+        [video_input]=/NetSDK/Video/input/channel/1
+        [video_brightness]=/NetSDK/Video/input/channel/1/brightnessLevel
+        [video_contrast]=/NetSDK/Video/input/channel/1/contrastLevel
+        [video_flip]=/NetSDK/Video/input/channel/1/flipEnabled
+        [video_mirror]=/NetSDK/Video/input/channel/1/mirrorEnabled
+        [video_hue]=/NetSDK/Video/input/channel/1/hueLevel
+        [video_mask]=/NetSDK/Video/input/channel/1/PrivacyMasks
+        [video_saturation]=/NetSDK/Video/input/channel/1/saturationLevel
+        [video_sharpness]=/NetSDK/Video/input/channel/1/sharpnessLevel
+        [motiondetection]=/NetSDK/Video/motionDetection/channel/1
+        [load]="/_SDK/info/monitor.php?nonce=123"
+        [ps]="/_SDK/info/monitor.php?nonce=123"
+        [debuginfo]="/_SDK/info/device.php?nonce=123"
+        [eventinfo]="/_SDK/info/event.php?nonce=123"
+        [health]=/Anyka/health
+        [config]=/Anyka/config
+        [log]=/Anyka/log
+        [oem]=/custom/OEM
+        [view_main]="/ch0_0.264"
+        [view_sub]="/ch0_1.264"
+        [snapshot]=/snapshot
+        [user_list]="/user/user_list.xml?username=$username&password=$password"
+    )
 
-declare -A audio_encode=(e enabled:b i audioInputChannelID:i c codecType:s)
-declare -A audio_input=(w workMode:s m microphoneType:s:auto,activePickup,passiveMic r sampleRate:i w sampleBitWidth:i i inputVolume:i o outputVolume:i)
-declare -A image_ircut=(c irCutControlMode:s:hardware,software m irCutMode:s:auto,daylight,night)
-declare -A image_denoise3d=(e enabled:b s denoise3dStrength:i)
-declare -A image_sharpness=(e enabled:b -s sharpnessLevel:i)
-declare -A image_wdr=(e enabled:b -s WDRStrength:i)
-declare -A image=(s imageStyle:i:1,2,3 l lowlightMode:s:close,day-night,only-night,auto c sceneMode:s:auto,indoor,outdoor e exposureMode:s:auto,bright,dark a awbMode:s:auto,indoor,outdoor b BLcompensationMode:s)
-declare -A image_videomode=(s imageStyle:i:1,2,3 l lowlightMode:s:close,day-night,only-night,auto c sceneMode:s:auto,indoor,outdoor e exposureMode:s:auto,bright,dark a awbMode:s:auto,indoor,outdoor b BLcompensationMode:s)
-declare -A network_dns=(p preferredDns:s a staticAlternateDns:s)
-declare -A network_esee=(e enabled:b)
-declare -A network_lan1=(v ipVersion:s i staticIP:s n staticNetmask:s g staticGateway:s t addressingType:s o OnvifAutoAdapt:b d dhcp:b)
-declare -A network_lan4=(v ipVersion:s i staticIP:s n staticNetmask:s g staticGateway:s t addressingType:s o OnvifAutoAdapt:b d dhcp:b)
-declare -A network_wifi=(m wirelessMode:s s stationMode.wirelessStaMode:s b stationMode.wirelessApBssId:s a stationMode.wirelessApEssId:s p stationMode.wirelessApPsk:s)
-declare -A network_port=(n portname:s p value:i)
-declare -A reboot=()
-declare -A time_ntp=(e enabled:b s ntpServerDomain:s)
-declare -A time_zone=()
-declare -A time=()
-declare -A vencode_main=(e enabled:b r resolution:s c codecType:s b constantBitrate:i f frameRate:i t bitRateControlType:s p h264Profile:s k keyFrameInterval:i n channelName:s F freeResolution:b )
-declare -A vencode_sub=(e enabled:b r resolution:s c codecType:s b constantBitrate:i f frameRate:i t bitRateControlType:s p h264Profile:s k keyFrameInterval:i n channelName:s F freeResolution:b )
-declare -A video_timeoverlay=(e enabled:b x regionX:i y regionY:i d dateFormat:s t timeFormat:i w displayWeek:b c displayChinese:b)
-declare -A video_channeloverlay=(e enabled:b x regionX:i y regionY:i)
-declare -A video_extraoverlay=(e expandChannelNameOverlay[0].enabled:b t expandChannelNameOverlay[0].expandChannelName:s)
-declare -A video_input=(e enabled:b l powerLineFrequencyMode:i:50,60,100,120 b brightnessLevel:i:0-100 c contrastLevel:i:0-100 s sharpnessLevel:i:0-100 a saturationLevel:i:0-100 h hueLevel:i:0-100 f flipEnabled:b m mirrorEnabled:b p privacyMask)
-declare -A video_flip=()
-declare -A video_mirror=()
-declare -A video_brightness=()
-declare -A video_contrast=()
-declare -A video_saturation=()
-declare -A video_hue=()
-declare -A video_sharpness=()
+    declare -A audio_encode=(e enabled:b i audioInputChannelID:i c codecType:s)
+    declare -A audio_input=(w workMode:s m microphoneType:s:auto,activePickup,passiveMic r sampleRate:i w sampleBitWidth:i i inputVolume:i o outputVolume:i)
+    declare -A image_ircut=(c irCutControlMode:s:hardware,software m irCutMode:s:auto,daylight,night)
+    declare -A image_denoise3d=(e enabled:b s denoise3dStrength:i)
+    declare -A image_sharpness=(e enabled:b -s sharpnessLevel:i)
+    declare -A image_wdr=(e enabled:b -s WDRStrength:i)
+    declare -A image=(s imageStyle:i:1,2,3 l lowlightMode:s:close,day-night,only-night,auto c sceneMode:s:auto,indoor,outdoor e exposureMode:s:auto,bright,dark a awbMode:s:auto,indoor,outdoor b BLcompensationMode:s)
+    declare -A image_videomode=(s imageStyle:i:1,2,3 l lowlightMode:s:close,day-night,only-night,auto c sceneMode:s:auto,indoor,outdoor e exposureMode:s:auto,bright,dark a awbMode:s:auto,indoor,outdoor b BLcompensationMode:s)
+    declare -A network_dns=(p preferredDns:s a staticAlternateDns:s)
+    declare -A network_esee=(e enabled:b)
+    declare -A network_lan1=(v ipVersion:s i staticIP:s n staticNetmask:s g staticGateway:s t addressingType:s o OnvifAutoAdapt:b d dhcp:b)
+    declare -A network_lan4=(v ipVersion:s i staticIP:s n staticNetmask:s g staticGateway:s t addressingType:s o OnvifAutoAdapt:b d dhcp:b)
+    declare -A network_wifi=(m wirelessMode:s s stationMode.wirelessStaMode:s b stationMode.wirelessApBssId:s a stationMode.wirelessApEssId:s p stationMode.wirelessApPsk:s)
+    declare -A network_port=(n portname:s p value:i)
+    declare -A reboot=()
+    declare -A time_ntp=(e enabled:b s ntpServerDomain:s)
+    declare -A time_zone=()
+    declare -A time=()
+    declare -A vencode_main=(e enabled:b r resolution:s c codecType:s b constantBitrate:i f frameRate:i t bitRateControlType:s p h264Profile:s k keyFrameInterval:i n channelName:s F freeResolution:b )
+    declare -A vencode_sub=(e enabled:b r resolution:s c codecType:s b constantBitrate:i f frameRate:i t bitRateControlType:s p h264Profile:s k keyFrameInterval:i n channelName:s F freeResolution:b )
+    declare -A video_timeoverlay=(e enabled:b x regionX:i y regionY:i d dateFormat:s t timeFormat:i w displayWeek:b c displayChinese:b)
+    declare -A video_channeloverlay=(e enabled:b x regionX:i y regionY:i)
+    declare -A video_extraoverlay=(e expandChannelNameOverlay[0].enabled:b t expandChannelNameOverlay[0].expandChannelName:s)
+    declare -A video_input=(e enabled:b l powerLineFrequencyMode:i:50,60,100,120 b brightnessLevel:i:0-100 c contrastLevel:i:0-100 s sharpnessLevel:i:0-100 a saturationLevel:i:0-100 h hueLevel:i:0-100 f flipEnabled:b m mirrorEnabled:b p privacyMask)
+    declare -A video_flip=()
+    declare -A video_mirror=()
+    declare -A video_brightness=()
+    declare -A video_contrast=()
+    declare -A video_saturation=()
+    declare -A video_hue=()
+    declare -A video_sharpness=()
+
+    if is_ip "$1"; then
+        cam=$(cam_for_ip "$1")    
+        parameters=( "$@" )
+        parameters[0]=$cam
+        set -- "${parameters[@]}"
+    fi
+
+    case $1 in
+
+        @($camlst))
+            cam_s=$1
+            cam_f=$1
+            shift
+            ;;
+        all)
+            cam_s=1
+            cam_f=8
+            shift
+            ;;
+        help)
+            help
+            exit
+            ;;
+        *)
+            exit_with_error "camera number, IP address or 'all' missing"
+            ;;
+    esac
+
+    if [[ -z $1 ]]; then
+        help
+    else
+        command="$1"
+        shift
+    fi
+
+    if ! test ${SDK[$command]+_}; then
+        printf "unknown command $command\n\n"
+        help
+    fi
+
+    for cam in $(seq "$cam_s" "$cam_f");do
+        case "$command" in
+            load)
+                get_json "$cam" "$command" ".CPU.Usage"
+                ;;
+            health|config|log)
+                get_text "$cam"
+                ;;
+            reboot)
+                put_json "$cam" "$command" '{true}'
+                ;;
+            snapshot)
+                view "$cam" "$command"
+                ;;
+            view_main|view_sub)
+                watch "$cam" "$command"
+                ;;
+            help)
+                help
+                ;;
+            *)
+                config "$cam" "$command" "$@"
+                ;;
+        esac
+    done
+}
 
 is_json () {
     jq -e . >/dev/null 2>&1 <<<"$@"
@@ -468,75 +537,9 @@ exit_with_error () {
     exit 1
 }
 
+main "$@"
+
 # ---------------------------------------------------
-
-if is_ip "$1"; then
-    cam=$(cam_for_ip "$1")    
-    parameters=( "$@" )
-    parameters[0]=$cam
-    set -- "${parameters[@]}"
-fi
-
-case $1 in
-
-    @($camlst))
-        cam_s=$1
-        cam_f=$1
-        shift
-        ;;
-    all)
-        cam_s=1
-        cam_f=8
-        shift
-        ;;
-    help)
-        help
-        exit
-        ;;
-    *)
-        exit_with_error "camera number, IP address or 'all' missing"
-        ;;
-esac
-
-if [[ -z $1 ]]; then
-    help
-else
-    command="$1"
-    shift
-fi
-
-if ! test ${SDK[$command]+_}; then
-    printf "unknown command $command\n\n"
-    help
-fi
-
-for cam in $(seq "$cam_s" "$cam_f");do
-    case "$command" in
-        load)
-            get_json "$cam" "$command" ".CPU.Usage"
-            ;;
-        health|config|log)
-            get_text "$cam"
-            ;;
-        reboot)
-            put_json "$cam" "$command" '{true}'
-            ;;
-        snapshot)
-            view "$cam" "$command"
-            ;;
-        view_main|view_sub)
-            watch "$cam" "$command"
-            ;;
-        help)
-            help
-            ;;
-        *)
-            config "$cam" "$command" "$@"
-            ;;
-    esac
-done
-
-exit
 
 # based on strings pulled from firmware dump, these represent api endpoints
 # used with GET or PUT requests as defined in NK_N1Device_InitV2()
